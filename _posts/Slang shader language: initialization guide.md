@@ -1,3 +1,7 @@
+---
+layout: post
+title: Blogging Like a Hacker
+---
 <h1>Slang: Basic Initialization Guide</h1>
 
 <p>This article explains how to get started with <strong>Slang</strong> in a C++ project. I’ll cover:</p>
