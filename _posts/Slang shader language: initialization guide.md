@@ -1,6 +1,6 @@
 ---
 layout: post
-title: Blogging Like a Hacker
+title: Slang: Basic Initialization Guide
 ---
 <h1>Slang: Basic Initialization Guide</h1>
 
