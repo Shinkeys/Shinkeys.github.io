@@ -1,6 +1,6 @@
 ---
 layout: post
-title: Slang: Basic Initialization Guide
+title: "Slang: Basic Initialization Guide"
 ---
 <h1>Slang: Basic Initialization Guide</h1>
 
