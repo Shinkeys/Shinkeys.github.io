@@ -2,7 +2,6 @@
 layout: post
 title: "Slang: Basic Initialization Guide"
 ---
-# Slang: Basic Initialization Guide
 
 This article explains how to get started with Slang in a C++ project. 
     I’ll cover installation options and recommended setup with CMake and common pitfalls and errors you may encounter.
