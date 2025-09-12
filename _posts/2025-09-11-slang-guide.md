@@ -11,13 +11,12 @@ Note: This tutorial assumes you already know the basics of C++ and CMake.
 
 # Installing Slang
 ### There are several ways to add Slang to your project, and I'll describe all of them:
-    Extract from VulkanSDK: Valid, but not ideal if you need recent language features not included in the SDK version.
-    Add as a Git submodule: Useful if you need access to Slang source files which have different built-in types (like ```slang::List```, ```slang::string```, etc.). Downside: increases repo size significantly because Slang has 20+ dependencies.
-    Use a CMake script to download release build from GitHub: Recommended if you only need to initialize the shader language.  
-        Downloads only ```.lib```, ```.dll```, and ```.h``` files.
-        Does not include extra dependencies or source code, so debugging Slang internals in unusual situations requires building from source manually.
+- Extract from VulkanSDK: Valid, but not ideal if you need recent language features not included in the SDK version.
+- Add as a Git submodule: Useful if you need access to Slang source files which have different built-in types (like ```slang::List```, ```slang::string```, etc.). Downside: increases repo size significantly because Slang has 20+ dependencies.
+- Use a CMake script to download release build from GitHub: Recommended if you only need to initialize the shader language.
 
-In this tutorial, I will focus on the CMake script method, as it is more scalable and keeps your project lightweight.
+In this tutorial, I will focus on the CMake script method, as it downloads only ```.lib```, ```.dll```, and ```.h``` files.
+However, it ***does not*** include extra dependencies or source code, so debugging Slang internals in unusual situations requires building from source manually.
 ## CMake Setup
 ```cpp
 # Script to install slang. As it is incovenient to install slang via submodules, because you would need to 
@@ -160,6 +159,38 @@ And it can be created as simple as:
 slang::IGlobalSession* _globalSession = nullptr;
 SLANG_CHECK(slang::createGlobalSession(&_globalSession));
 ```
-Where SLANG_CHECK is a macro that we will also use later to check whether result code of function call is true.
+> [!NOTE]  
+> Where ```SLANG_CHECK``` is a user-defined macro that we will also use later to check whether result code of the function call is true.
 
+### Local session
+A local session is where the actual shader compilation setup happens.
+This session is configured with compilation targets, matrix layout rules and other language options.
+It requires two fields, where the first one is ```slang::TargetDesc  targetDesc{};```
+A target basically specifies how the shader will be compiled.
+```cpp
+targetDesc.format  = SLANG_SPIRV;
+targetDesc.profile = _globalSession->findProfile("sm_6_8");
+targetDesc.flags = SLANG_TARGET_FLAG_GENERATE_SPIRV_DIRECTLY;
+targetDesc.forceGLSLScalarBufferLayout = true;
+```
+As this tutorial is written for Vulkan I suggest you to use these settings.  
+Flag ```SLANG_TARGET_FLAG_GENERATE_SPIRV_DIRECTLY``` will highlight to the slang that it can generate SPIR-V bytecode directly bypassing HLSL stage as it's not necessary with Vulkan.
+Profile "sm_6_8"(Shader Model 6.8) will allow you to use every modern slang feature.
+> [!IMPORTANT]  
+> If you utilize Vulkan's __VK_EXT_scalar_block_layout__ you must specify this in target as I did above by setting ```forceGLSLScalarBufferLayout``` to true. And if you don't I recommend you to enable this extension as it's in the core since Vulkan 1.2 and allows you to avoid CPU/GPU struct padding issues.
 
+### The last thing left is to create local session is to describe the session itself
+```cpp
+slang::SessionDesc sessionDesc{};
+sessionDesc.targets = &targetDesc;
+sessionDesc.targetCount = 1;
+sessionDesc.defaultMatrixLayoutMode = SLANG_MATRIX_LAYOUT_COLUMN_MAJOR; // GLSL-like
+```
+> [!IMPORTANT]  
+> By default, Slang uses row-major matrices, GLSL, however, assumes column-major. If you want to keep it like that set ```defaultMatrixLayoutMode``` as I did above
+
+And now we can create a local session by simply calling
+```cpp
+SLANG_CHECK(_globalSession->createSession(sessionDesc, &_localSession));
+```
+That's it - at this point you should have both a global and a local session created.
