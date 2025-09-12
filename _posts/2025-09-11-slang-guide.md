@@ -537,9 +537,9 @@ FragmentOutput FragmentMain(VertexOutput input)
 }
 ```
 If you use a texture then use ```Sampler2D```, if you need a storage image you can use ```RWTexture2D<uint2>```
-This is just a simple example: Slang is giving a possibilities to use generics, interfaces which allows you to reuse the methods with multiple data, cross-target compilation. A modularity provides a data-reuse instead of "copying-pasting" source code every time you include the shader, which allows to have a circular-includes.
-I won't describe every possibility it gives to you, as you can read their [user's guide]([url](https://shader-slang.org/slang/user-guide/))  
-Investigate [Sascha's Willems examples]([url](https://github.com/SaschaWillems/Vulkan/tree/master/shaders/slang)) in Slang.
+This is just a simple example: Slang is giving a possibilities to use generics, interfaces which allows you to reuse the methods with multiple data, cross-target compilation. A modularity provides a data-reuse instead of "copying-pasting" source code every time you include the shader, which allows to have a circular-includes.  
+I won't describe every possibility it gives to you, as you can read their [user's guide](https://shader-slang.org/slang/user-guide/)  
+Investigate [Sascha's Willems examples](https://github.com/SaschaWillems/Vulkan/tree/master/shaders/slang) in Slang.
 
 # Suggestions
 One of the core reasons I decided to switch from GLSL was a syntax highlight. If you use Vulkan with such a modern features as Buffer Device Address, GLSL syntax highlighters will show an error, although the code compiles because it has no up-to-date linter which forces you to work without syntax highlight at all or to observe constant errors.
