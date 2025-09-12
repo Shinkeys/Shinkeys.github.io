@@ -156,10 +156,11 @@ And it can be created as simple as:
     }                                  \
 }
 
-slang::IGlobalSession* _globalSession = nullptr;
+Slang::ComPtr<slang::IGlobalSession> _globalSession;
 SLANG_CHECK(slang::createGlobalSession(&_globalSession));
 ```
-> Where ```SLANG_CHECK``` is a user-defined macro that we will also use later to check whether result code of the function call is true.
+> Where ```SLANG_CHECK``` is a user-defined macro that we will also use later to check whether result code of the function call is true.  
+> ```ComPtr``` is just a smart pointer.
 
 ### Local session
 A local session is where the actual shader compilation setup happens.
@@ -188,6 +189,99 @@ sessionDesc.defaultMatrixLayoutMode = SLANG_MATRIX_LAYOUT_COLUMN_MAJOR; // GLSL-
 
 And now we can create a local session by simply calling
 ```cpp
+Slang::ComPtr<slang::ISession> _localSession;
 SLANG_CHECK(_globalSession->createSession(sessionDesc, &_localSession));
 ```
 That's it - at this point you should have both a global and a local session created.
+
+# Shader modules
+Now we can create Vulkan shader modules, which are part of pipeline creation and I won't describe this whole process but only shader modules creation.
+To create it we will need ```slang::IModule*```  which we need to load by providing a path to the shader and it's name.
+To not recreate modules in case if you will create a different pipelines with the same shader I suggest to wrap created above sessions and modules in such a class:
+```cpp
+class VulkanShader
+{
+private:
+	std::unordered_map<std::string, slang::IModule*> _modulesStorage;
+
+	Slang::ComPtr<slang::IGlobalSession> _globalSession;
+	Slang::ComPtr<slang::ISession> _localSession;
+public:
+	slang::IModule* LoadModule(const fs::path& shaderPath);
+
+	slang::IModule* GetModuleByName(const std::string& name);
+
+	VkShaderModule CreateShaderModule(slang::IModule* slangModule, const std::string& entrypoint);
+};
+```
+When creating a pipeline  provide a shader name and pass it to ```LoadModule``` method like this:
+```cpp
+fs::path shaderPath = _specification.shaderName;
+
+shaderPath += ".slang";
+
+slang::IModule* slangModule = _shaderObject.LoadModule(shaderPath);
+```
+> fs::path is an  alias for std::filesystem::path
+
+Sadly, ```std::filesystem::path``` doesn’t provide a direct way to locate your project root, so in this method we will need to transform the path somehow.
+As an option I decided to implement this with a loop:
+```cpp
+fs::path currentDir = fs::current_path();
+while (!helpers::IsProjectRoot(currentDir))
+{
+	currentDir = currentDir.parent_path();
+}
+
+// Purpose: check if in project's root now
+inline bool IsProjectRoot(const fs::path& path)
+{
+	return fs::exists(path / "headers") && fs::exists(path / "src");
+}
+```
+It starts at the working directory and walks upward until it finds the project root.
+I also recommend to create a Slang-specific helper function:
+```cpp
+void PrintDiagnosticBlob(ComPtr<slang::IBlob> blob)
+{
+#ifndef NDEBUG
+	if (blob != nullptr)
+	{
+		printf("%s", (const char*)blob->getBufferPointer());
+	}
+#endif
+}
+```
+Which will print diagnostic messages to the console where error occurs. I __strongly__ suggest you to enable it, especially that we've downloaded slang build without sources and as a result unable to debug it properly without building manually.
+A complete ```LoadModule``` method example:
+```cpp
+slang::IModule* VulkanShader::LoadModule(const fs::path& shaderName)
+{
+	fs::path currentDir = fs::current_path();
+	while (!helpers::IsProjectRoot(currentDir))
+	{
+		currentDir = currentDir.parent_path();
+	}
+
+	fs::path changedShaderPath = currentDir / "resources" / "shaders" / shaderName;
+	const std::string shaderPathStr = changedShaderPath.string();
+
+	slang::IModule* slangModule = nullptr;
+  	if (_modulesStorage.find(shaderPathStr) == _modulesStorage.end())
+	{
+		ComPtr<slang::IBlob> diagnosticsBlob;
+		slangModule = _localSession->loadModule(shaderPathStr.c_str(), diagnosticsBlob.writeRef());
+		PrintDiagnosticBlob(diagnosticsBlob);
+
+		if (!slangModule)
+			std::abort();
+
+		_modulesStorage[shaderPathStr] = slangModule;
+	}
+	else
+		slangModule = _modulesStorage[changedShaderPath.string()];
+
+	return slangModule;
+}
+```
+The key ideas are already described above. In my case it searches in the module storage and if the module exists already it will just return it, otherwise create a new one by passing transformed path to the shader and a diagnostic blob as a second parameter to enable validation on errors.
