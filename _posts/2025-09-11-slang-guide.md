@@ -285,3 +285,78 @@ slang::IModule* VulkanShader::LoadModule(const fs::path& shaderName)
 }
 ```
 The key ideas are already described above. In my case it searches in the module storage and if the module exists already it will just return it, otherwise create a new one by passing transformed path to the shader and a diagnostic blob as a second parameter to enable validation on errors.
+
+Now in the pipeline creation method you can call ```CreateShaderModule``` which will return ```VkShaderModule``` on success. It accepts Slang's module we've just created and an entrypoint of the shader.
+
+### Entrypoint
+An entrypoint is just a name of the shader. For example:  
+```cpp
+[shader("fragment")]
+FragmentOutput FragmentMain(VertexOutput input)
+```
+> ```FragmentMain``` is the entrypoint
+
+```CreateShaderModule``` first of all will try to find an entrypoint by name we passed to it. Then it will link the program from this entrypoint with every module you will import to this shader(I'll describe it later) and after that it will get the entrypoint code in SPIR-V from which we are finally able to create a ```VkShaderModule```
+Full method:
+```cpp
+VkShaderModule VulkanShader::CreateShaderModule(slang::IModule* slangModule, const std::string& entrypointName)
+{
+	assert(slangModule && "Can't create shader module, slang module is nullptr");
+
+
+	ComPtr<slang::IEntryPoint> entryPoint;
+	SlangResult result = slangModule->findEntryPointByName(entrypointName.c_str(), entryPoint.writeRef());
+	if (result != 0)
+	{
+		std::cout << "Unable to create shader module by entrypoint: " << entrypointName << '\n';
+		assert(false);
+	}
+
+
+	ComPtr<slang::IComponentType> linkedProgram;
+	{
+		ComPtr<slang::IBlob> diagnosticsBlob;
+		SlangResult result = entryPoint->link(linkedProgram.writeRef(), diagnosticsBlob.writeRef());
+		PrintDiagnosticBlob(diagnosticsBlob);
+
+		SLANG_CHECK(result);	
+	}
+
+	ComPtr<slang::IBlob> spirv;
+	{
+		ComPtr<slang::IBlob> diagnosticsBlob;
+		SlangResult result = linkedProgram->getEntryPointCode(
+			0,
+			0,
+			spirv.writeRef(),
+			diagnosticsBlob.writeRef());
+		PrintDiagnosticBlob(diagnosticsBlob);
+
+		SLANG_CHECK(result);
+	}
+	 
+
+	VkShaderModule shaderModule = vkhelpers::ReadShaderFile(static_cast<const u32*>(spirv->getBufferPointer()),
+		spirv->getBufferSize(), _deviceObj.GetDevice());
+
+
+	return shaderModule;
+}
+```
+Where ```ReadShaderFile```:
+```cpp
+VkShaderModule ReadShaderFile(const u32* data, size_t size, VkDevice device)
+{
+	VkShaderModuleCreateInfo createInfo{ VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO };
+	createInfo.pCode = data;
+	createInfo.codeSize = size;
+
+
+	VkShaderModule shaderModule;
+	VK_CHECK(vkCreateShaderModule(device, &createInfo, nullptr, &shaderModule));
+
+	return shaderModule;
+}
+```
+We need to use ```static_cast``` manually because ```getBufferPointer``` returns a void* data.
+Now you can use this base to create a modules for every type of the shaders: Vertex, Fragment, Compute, RayGen and others.
