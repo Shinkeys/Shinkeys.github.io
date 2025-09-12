@@ -122,8 +122,8 @@ By executing download slang script now you should be able to call 3 user defined
 - ${SLANG_BINARY_DIR}  - path to the directory with slang binary files
 
 Now you would need only the first two.
-You have to make all header files visible to your project, so inside of target_include_directories specify the include dir mentioned above.
-Then you can link the library, easiest way to do that would be to make a target_link_directories and specify aforementioned command with the lib directory path(don't forget to link slang after that, just by specifying target_link_libraries(target access modifier slang)
+You have to make all header files visible to your project, so inside of ```target_include_directories specify``` the include directory mentioned above.
+Then you can link the library, easiest way to do that would be to call a ```target_link_directories``` and specify aforementioned command with the lib directory path(don't forget to link Slang after that, just by specifying ```target_link_libraries(target access modifier slang)```
 
 Tiny example of the code:
 ```cpp
@@ -159,7 +159,6 @@ And it can be created as simple as:
 slang::IGlobalSession* _globalSession = nullptr;
 SLANG_CHECK(slang::createGlobalSession(&_globalSession));
 ```
-> [!NOTE]  
 > Where ```SLANG_CHECK``` is a user-defined macro that we will also use later to check whether result code of the function call is true.
 
 ### Local session
@@ -176,7 +175,6 @@ targetDesc.forceGLSLScalarBufferLayout = true;
 As this tutorial is written for Vulkan I suggest you to use these settings.  
 Flag ```SLANG_TARGET_FLAG_GENERATE_SPIRV_DIRECTLY``` will highlight to the slang that it can generate SPIR-V bytecode directly bypassing HLSL stage as it's not necessary with Vulkan.
 Profile "sm_6_8"(Shader Model 6.8) will allow you to use every modern slang feature.
-> [!IMPORTANT]  
 > If you utilize Vulkan's __VK_EXT_scalar_block_layout__ you must specify this in target as I did above by setting ```forceGLSLScalarBufferLayout``` to true. And if you don't I recommend you to enable this extension as it's in the core since Vulkan 1.2 and allows you to avoid CPU/GPU struct padding issues.
 
 ### The last thing left is to create local session is to describe the session itself
@@ -186,7 +184,6 @@ sessionDesc.targets = &targetDesc;
 sessionDesc.targetCount = 1;
 sessionDesc.defaultMatrixLayoutMode = SLANG_MATRIX_LAYOUT_COLUMN_MAJOR; // GLSL-like
 ```
-> [!IMPORTANT]  
 > By default, Slang uses row-major matrices, GLSL, however, assumes column-major. If you want to keep it like that set ```defaultMatrixLayoutMode``` as I did above
 
 And now we can create a local session by simply calling
