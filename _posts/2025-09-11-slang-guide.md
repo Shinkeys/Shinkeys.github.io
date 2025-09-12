@@ -360,3 +360,187 @@ VkShaderModule ReadShaderFile(const u32* data, size_t size, VkDevice device)
 ```
 We need to use ```static_cast``` manually because ```getBufferPointer``` returns a void* data.
 Now you can use this base to create a modules for every type of the shaders: Vertex, Fragment, Compute, RayGen and others.
+
+# Shaders
+I will show some examples of shaders in Slang and highlight the key advantages over GLSL/HLSL.
+In my opinion, the main features of Slang is it's modularity and flexibility. Unlike GLSL, it allows you to have different shader stages in one file, allowing you to store vertex and fragment shaders together in one file or even the entire ray tracing pipeline. Which sounds logical, since the feature exists in SPIR-V, which means the problem was in the language itself.
+The second is support for many modern things, like buffer pointers if you use Buffer Device Address. In GLSL you have to first create a structure that explains this.
+
+> To find modules in specific folder place the file named ```slangdconfig.json``` to the main directory of the shader with this content
+```cpp
+{
+  "slang.additionalSearchPaths": [
+    "./common",
+    "./"
+  ]
+}
+```
+Which will provide the folder to look for modules to Slang.
+
+Slang's syntax is very C#-like so you can create a structure like that: 
+```cpp
+public struct Triangle
+{
+    public Array<float3, 3> pos;
+    public Array<float2, 3> uv;
+}
+```
+Which means it will be visible in every file imported it(yes, you need to make fields public as well)
+You can do it in GLSL as well, however Slang is giving this possibility for modules out of the box which is the advantage I think.
+
+For example, create some module to abstract some logic and you can import it in the other shader like that ```import common.mesh_common;``` where __common__ is the folder and __.__ is the __/__ for the folder.
+In GLSL you have a built-in variable ```gl_NumWorkGroups``` to get the dispatch size, Slang and HLSL, however, doesn't have it. What to do?
+Not a problem, if you use Vulkan just use an assembly to get this variable while preserving HLSL-like syntax:
+```cpp
+uint3 GetWorkgroupCount()
+{
+    __target_switch
+    {
+    case glsl: __intrinsic_asm "gl_NumWorkGroups";
+    case spirv:
+        return spirv_asm {
+                result:$$uint3 = OpLoad builtin(NumWorkgroups:uint3);
+           };
+    }
+}
+```
+
+Here's the example of the shader:
+```cpp
+import common.camera;
+import common.common;
+import common.lights;
+import common.PBR_common;
+
+
+[[vk::push_constant]]
+cbuffer PushConstants
+{ 
+    PointLight *lightsPtr;
+    int *lightIndicesPtr;
+    ViewData *viewDataPtr;
+
+    uint positionTexIndex;
+    uint normalsTexIndex;
+    uint albedoTexIndex;
+    uint metallicRoughnessTexIndex;
+
+    uint pointLightsCount;
+    uint tileSize;
+};
+
+static const Array<float3, 6> vertices = 
+{
+    float3(-1.0f, -1.0f, 0.0f),
+    float3(1.0f, -1.0f, 0.0f),
+    float3(1.0f, 1.0f, 0.0f),
+    float3(1.0f, 1.0f, 0.0f),
+    float3(-1.0f, 1.0f, 0.0f),
+    float3(-1.0f, -1.0f, 0.0f)
+};
+
+static const Array<float2, 6> texCoords =
+{
+	float2(0.0f, 1.0f),
+    float2(1.0f, 1.0f),
+    float2(1.0f, 0.0f),
+    float2(1.0f, 0.0f),
+    float2(0.0f, 0.0f),
+    float2(0.0f, 1.0f)
+};
+
+struct VertexInput
+{
+    uint vertexIndex : SV_VertexID;
+};
+
+struct VertexOutput
+{
+    float4 position : SV_Position;
+    float2 texCoord;
+};
+
+[shader("vertex")]
+VertexOutput VertexMain(VertexInput input)
+{
+    VertexOutput output = (VertexOutput)0;
+    output.position = float4(vertices[input.vertexIndex], 1.0);
+    output.texCoord = float2(texCoords[input.vertexIndex]);
+
+    return output;
+}
+
+[vk::binding(0, 0)]
+public Sampler2D textures[];
+[vk::binding(1, 0)]
+public RWTexture2D<uint2> lightsGrid;
+
+struct FragmentOutput 
+{
+    float4 color : SV_TARGET0;
+};
+
+[shader("fragment")]
+FragmentOutput FragmentMain(VertexOutput input)
+{
+    FragmentOutput output = (FragmentOutput)0;
+
+    float3 positions = float3(0.0);
+    if (positionTexIndex > 0)
+    {
+        positions = textures[positionTexIndex].Sample(input.texCoord).xyz;
+    }
+
+    float3 albedoColor = float3(0.5);
+    if (albedoTexIndex > 0)
+    {
+        albedoColor = textures[albedoTexIndex].Sample(input.texCoord).xyz;
+    }
+
+    float3 normals = float3(0.0);
+    if (normalsTexIndex > 0)
+    {
+        normals = textures[normalsTexIndex].Sample(input.texCoord).xyz;
+    }
+
+    float3 metallicRoughnessColor = float3(0.0);
+    if (metallicRoughnessTexIndex > 0)
+    {
+        metallicRoughnessColor = textures[metallicRoughnessTexIndex].Sample(input.texCoord).xyz;
+    }
+
+    int3 fragCoord = int3(input.position.xyz);
+
+    uint2 lightsDataInTile = lightsGrid.Load(int2(fragCoord.x / tileSize, fragCoord.y / tileSize));
+    uint startIndex = lightsDataInTile.x;
+    uint lightsCount = lightsDataInTile.y;  
+
+    float3 lightingResult = albedoColor * 0.1;
+
+    float3 Lo = float3(0.0);
+    for (uint i = 0; i < lightsCount; ++i)
+    {
+        uint lightIndex = lightIndicesPtr[i + startIndex];
+        PointLight pointLight = lightsPtr[lightIndex];
+
+        Lo += CalculateLight(pointLight, albedoColor, metallicRoughnessColor, normals, viewDataPtr.position, positions);
+    }
+
+    float3 ambient = float3(0.001) * albedoColor;
+    float3 color = ambient + Lo;
+    color = color / (color + float3(1.0));
+    color = pow(color, float3(1.0 / 2.2));
+
+    output.color = float4(color, 1.0);
+
+    return output;
+}
+```
+If you use a texture then use ```Sampler2D```, if you need a storage image you can use ```RWTexture2D<uint2>```
+This is just a simple example: Slang is giving a possibilities to use generics, interfaces which allows you to reuse the methods with multiple data, cross-target compilation. A modularity provides a data-reuse instead of "copying-pasting" source code every time you include the shader, which allows to have a circular-includes.
+I won't describe every possibility it gives to you, as you can read their [user's guide]([url](https://shader-slang.org/slang/user-guide/))
+Investigate [Sascha's Willems examples]([url](https://github.com/SaschaWillems/Vulkan/tree/master/shaders/slang)) in Slang
+
+# Suggestions
+One of the core reasons I decided to switch from GLSL was a syntax highlight. If you use Vulkan with such a modern features as Buffer Device Address, GLSL syntax highlighter's will show an errors, although the code compiles because It has no up-to-date linter which forces you to work without syntax highlight at all or to observe constant errors.
+Slang, however, has an official Visual Studio and Visual Studio Code language extensions and they work great.
