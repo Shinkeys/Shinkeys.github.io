@@ -125,6 +125,8 @@ Now you would need only the first two.
 You have to make all header files visible to your project, so inside of ```target_include_directories``` specify the include directory mentioned above.
 Then you can link the library, the easiest way to do that would be to call a ```target_link_directories``` to specify the directory with the library files. Then just call ```target_link_libraries(target access modifier slang)``` to link it.
 
+> IMPORTANT: The precompiled binaries are in release, if your project is in debug it will work fine as long as it's linked dynamically and you don't pass object's ownership between Slang and your project. I don't do that in this example and you should be cautious when you mixing release and debug builds which is __not recommended__. Otherwise, you will need to build Slang manually.
+
 ### Your .dll must be in the same directory as the .exe of your project. I suggest you use this CMake script:
 ```cpp
 add_custom_command(TARGET MyProject POST_BUILD
@@ -290,7 +292,7 @@ slang::IModule* VulkanShader::LoadModule(const fs::path& shaderName)
 		_modulesStorage[shaderPathStr] = slangModule;
 	}
 	else
-		slangModule = _modulesStorage[changedShaderPath.string()];
+		slangModule = _modulesStorage[shaderPathStr];
 
 	return slangModule;
 }
