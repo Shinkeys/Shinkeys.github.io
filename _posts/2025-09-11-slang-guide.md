@@ -1,25 +1,25 @@
 ---
 layout: post
-title: "Slang: Basic Initialization Guide"
+title: "Slang: Initialization Guide"
 ---
 
-This article explains how to get started with Slang in a C++ project. 
-    I’ll cover installation options and recommended setup with CMake and common pitfalls and errors you may encounter.
-    At the end of a guide you will have a minimal shader initialization example with Vulkan.
+This article explains how to get started with __The Slang Shading Language__ in a C++ project. 
+    I’ll cover installation options and recommended setup with CMake, common pitfalls and errors you may encounter.
+    At the end of the guide you will have a minimal shader initialization example with Vulkan.
 
-Note: This tutorial assumes you already know the basics of C++ and CMake.
+__Note:__ This tutorial assumes you already know the basics of C++ and CMake.
 
 # Installing Slang
 ### There are several ways to add Slang to your project, and I'll describe all of them:
 - Extract from VulkanSDK: Valid, but not ideal if you need recent language features not included in the SDK version.
-- Add as a Git submodule: Useful if you need access to Slang source files which have different built-in types (like ```slang::List```, ```slang::string```, etc.). Downside: increases repo size significantly because Slang has 20+ dependencies.
-- Use a CMake script to download release build from GitHub: Recommended if you only need to initialize the shader language.
+- Add as a Git submodule: Useful if you need access to Slang source files which have different built-in types (like ```slang::List```, ```slang::string```, etc.). Downside: increases repository size significantly because Slang has over 20 dependencies.
+- Use a CMake script to download the release build from GitHub: Recommended if you only need to initialize the shader language.
 
 In this tutorial, I will focus on the CMake script method, as it downloads only ```.lib```, ```.dll```, and ```.h``` files.
 However, it ***does not*** include extra dependencies or source code, so debugging Slang internals in unusual situations requires building from source manually.
 ## CMake Setup
 ```cpp
-# Script to install slang. As it is incovenient to install slang via submodules, because you would need to 
+# Script to install slang. As it is inconvenient to install slang via submodules, because you would need to 
 # install every dependency
 
 include(FetchContent)
@@ -110,20 +110,31 @@ function(setup_slang_variables ROOT)
 endfunction()
 
 ```
-### To be short and precise: this script would download and build slang from source if it's already not installed in the project.
+### Put it briefly, this script will download prebuilt release binaries if they're not already installed in the project.
 
-You can copy paste this script as CMake is sometimes really painful to work with and it would save some time for you.
+You can copy and paste this script, as CMake can be quite challenging to work with, and it will save you some time.
 All you left to do now is to include this file in your main CMake script like this: ```include(${CMAKE_SOURCE_DIR}/CMakeScripts/slang-setup.cmake)```
-The next step would be to place the function ```download_slang()``` somewhere below in this file, it would call aforementioned script and if slang library is not found in your project it would proceed to download it.
+The next step would be to place the function ```download_slang()``` somewhere below in this file. It would call the aforementioned script, and if the Slang library is not found in your project, it would proceed to download it.
 
-By executing download slang script now you should be able to call 3 user defined CMake variables:
+By executing the ```download_slang``` script you should be able to call 3 user-defined CMake variables:
 - ${SPIRV_LIBRARY_DIR} - path to the directory with the library files
 - ${SLANG_INCLUDE_DIR} - path to the include directory
 - ${SLANG_BINARY_DIR}  - path to the directory with slang binary files
 
 Now you would need only the first two.
-You have to make all header files visible to your project, so inside of ```target_include_directories specify``` the include directory mentioned above.
-Then you can link the library, easiest way to do that would be to call a ```target_link_directories``` and specify aforementioned command with the lib directory path(don't forget to link Slang after that, just by specifying ```target_link_libraries(target access modifier slang)```
+You have to make all header files visible to your project, so inside of ```target_include_directories``` specify the include directory mentioned above.
+Then you can link the library, the easiest way to do that would be to call a ```target_link_directories``` and specify aforementioned command with the lib directory path(don't forget to link Slang after that, just by specifying ```target_link_libraries(target access modifier slang)```
+
+### Your .dll must be in the same directory as the .exe of your project. I suggest you use this CMake script:
+```cpp
+add_custom_command(TARGET MyProject POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${SLANG_BINARY_DIR}/slang.dll" "$<TARGET_FILE_DIR:Lux>"
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${SLANG_BINARY_DIR}/slang-glslang.dll" "$<TARGET_FILE_DIR:Lux>"
+)
+```
+> Or you can copy it manually.
 
 Tiny example of the code:
 ```cpp
@@ -133,19 +144,19 @@ target_include_directories(MyProject PRIVATE ${SLANG_INCLUDE_DIR})
 target_link_directories(MyProject PRIVATE ${SLANG_LIBRARY_DIR})
 target_link_libraries(MyProject PRIVATE slang)
 ```
-And that's it. Now when you will compile your project it should download the slang if it doesn't exist already and link after.
+And that's it. Now, when you compile your project, it should download the slang if it doesn't exist already and link after.
 
 # Creating a Global and Local Slang Session
 ## This section explains how to create the two main objects required to use the Slang API:
--   A global session which just represents a connection from an application to an implementation of the Slang API
--   A local session which represents a shader compilation context with specific target settings
+-   A global session, which just represents a connection from an application to an implementation of the Slang API
+-   A local session that represents a shader compilation context with specific target settings
 
 ### Global session
 The first thing you need is a global session.
 It acts as a top-level connection between your application and the Slang runtime. ***It must be created only once per thread, and cannot be shared between threads.***
 If your application is multithreaded, create a separate global session per thread.
 
-And it can be created as simple as:
+And it can be created as simply as:
 ```cpp
 #define SLANG_CHECK(x)                 \
 {                                      \
@@ -159,12 +170,12 @@ And it can be created as simple as:
 Slang::ComPtr<slang::IGlobalSession> _globalSession;
 SLANG_CHECK(slang::createGlobalSession(&_globalSession));
 ```
-> Where ```SLANG_CHECK``` is a user-defined macro that we will also use later to check whether result code of the function call is true.  
+> Where ```SLANG_CHECK``` is a user-defined macro that we will also use later to check whether the result code of the function call is true.  
 > ```ComPtr``` is just a smart pointer.
 
 ### Local session
 A local session is where the actual shader compilation setup happens.
-This session is configured with compilation targets, matrix layout rules and other language options.
+This session is configured with compilation targets, matrix layout rules, and other language options.
 It requires two fields, where the first one is ```slang::TargetDesc  targetDesc{};```
 A target basically specifies how the shader will be compiled.
 ```cpp
@@ -173,31 +184,31 @@ targetDesc.profile = _globalSession->findProfile("sm_6_8");
 targetDesc.flags = SLANG_TARGET_FLAG_GENERATE_SPIRV_DIRECTLY;
 targetDesc.forceGLSLScalarBufferLayout = true;
 ```
-As this tutorial is written for Vulkan I suggest you to use these settings.  
-Flag ```SLANG_TARGET_FLAG_GENERATE_SPIRV_DIRECTLY``` will highlight to the slang that it can generate SPIR-V bytecode directly bypassing HLSL stage as it's not necessary with Vulkan.
+As this tutorial is written for Vulkan, I suggest you use these settings.  
+Flag ```SLANG_TARGET_FLAG_GENERATE_SPIRV_DIRECTLY``` will highlight to the slang that it can generate SPIR-V bytecode directly, bypassing HLSL stage, as it's not necessary with Vulkan.
 Profile "sm_6_8"(Shader Model 6.8) will allow you to use every modern slang feature.
-> If you utilize Vulkan's __VK_EXT_scalar_block_layout__ you must specify this in target as I did above by setting ```forceGLSLScalarBufferLayout``` to true. And if you don't I recommend you to enable this extension as it's in the core since Vulkan 1.2 and allows you to avoid CPU/GPU struct padding issues.
+> If you utilize Vulkan's __VK_EXT_scalar_block_layout__ you must specify this in the target as I did above by setting ```forceGLSLScalarBufferLayout``` to true. And if you don't, I recommend you enable this extension as it's in the core since Vulkan 1.2 and allows you to avoid CPU/GPU struct padding issues.
 
-### The last thing left is to create local session is to describe the session itself
+### The last thing left is to create a local session to describe the session itself
 ```cpp
 slang::SessionDesc sessionDesc{};
 sessionDesc.targets = &targetDesc;
 sessionDesc.targetCount = 1;
 sessionDesc.defaultMatrixLayoutMode = SLANG_MATRIX_LAYOUT_COLUMN_MAJOR; // GLSL-like
 ```
-> By default, Slang uses row-major matrices, GLSL, however, assumes column-major. If you want to keep it like that set ```defaultMatrixLayoutMode``` as I did above
+> By default, Slang uses row-major matrices; GLSL, however, assumes column-major. If you want to keep it like that, set ```defaultMatrixLayoutMode``` as I did above
 
 And now we can create a local session by simply calling
 ```cpp
 Slang::ComPtr<slang::ISession> _localSession;
 SLANG_CHECK(_globalSession->createSession(sessionDesc, &_localSession));
 ```
-That's it - at this point you should have both a global and a local session created.
+That's it - at this point, you should have both a global and a local session created.
 
 # Shader modules
-Now we can create Vulkan shader modules, which are part of pipeline creation and I won't describe this whole process but only shader modules creation.
-To create it we will need ```slang::IModule*```  which we need to load by providing a path to the shader and it's name.
-To not recreate modules in case if you will create a different pipelines with the same shader I suggest to wrap created above sessions and modules in such a class:
+Now we can create Vulkan shader modules, which are part of pipeline creation, and I won't describe this whole process, but only shader modules creation.
+To create it, we will need ```slang::IModule*```  which we need to load by providing a path to the shader and its name.
+To not recreate modules in case you create different pipelines with the same shader, I suggest wrapping the sessions and modules in such a class:
 ```cpp
 class VulkanShader
 {
@@ -214,7 +225,7 @@ public:
 	VkShaderModule CreateShaderModule(slang::IModule* slangModule, const std::string& entrypoint);
 };
 ```
-When creating a pipeline  provide a shader name and pass it to ```LoadModule``` method like this:
+When creating a pipeline, provide a shader name and pass it to ```LoadModule``` method like this:
 ```cpp
 fs::path shaderPath = _specification.shaderName;
 
@@ -225,7 +236,7 @@ slang::IModule* slangModule = _shaderObject.LoadModule(shaderPath);
 > fs::path is an  alias for std::filesystem::path
 
 Sadly, ```std::filesystem::path``` doesn’t provide a direct way to locate your project root, so in this method we will need to transform the path somehow.
-As an option I decided to implement this with a loop:
+As an option, I decided to implement this with a loop:
 ```cpp
 fs::path currentDir = fs::current_path();
 while (!helpers::IsProjectRoot(currentDir))
@@ -240,7 +251,7 @@ inline bool IsProjectRoot(const fs::path& path)
 }
 ```
 It starts at the working directory and walks upward until it finds the project root.
-I also recommend to create a Slang-specific helper function:
+I also recommend creating a Slang-specific helper function:
 ```cpp
 void PrintDiagnosticBlob(ComPtr<slang::IBlob> blob)
 {
@@ -252,7 +263,7 @@ void PrintDiagnosticBlob(ComPtr<slang::IBlob> blob)
 #endif
 }
 ```
-Which will print diagnostic messages to the console where error occurs. I __strongly__ suggest you to enable it, especially that we've downloaded slang build without sources and as a result unable to debug it properly without building manually.
+This will print diagnostic messages to the console where an error occurs. I __strongly__ suggest you enable it, especially since we've downloaded slang build without sources and as a result unable to debug it properly without building it manually.
 A complete ```LoadModule``` method example:
 ```cpp
 slang::IModule* VulkanShader::LoadModule(const fs::path& shaderName)
@@ -284,19 +295,19 @@ slang::IModule* VulkanShader::LoadModule(const fs::path& shaderName)
 	return slangModule;
 }
 ```
-The key ideas are already described above. In my case it searches in the module storage and if the module exists already it will just return it, otherwise create a new one by passing transformed path to the shader and a diagnostic blob as a second parameter to enable validation on errors.
+The key ideas are already described above. In my case it, searches in the module storage, and if the module exists already, it will just return it; otherwise it create a new one by passing the transformed path to the shader and a diagnostic blob as a second parameter to enable validation on errors.
 
-Now in the pipeline creation method you can call ```CreateShaderModule``` which will return ```VkShaderModule``` on success. It accepts Slang's module we've just created and an entrypoint of the shader.
+Now, in the pipeline creation method, you can call ```CreateShaderModule``` which will return ```VkShaderModule``` on success. It accepts Slang's module we've just created and an entry point of the shader.
 
-### Entrypoint
-An entrypoint is just a name of the shader. For example:  
+### Entry point
+An entry point is just the name of the shader. For example:  
 ```cpp
 [shader("fragment")]
 FragmentOutput FragmentMain(VertexOutput input)
 ```
 > ```FragmentMain``` is the entrypoint
 
-```CreateShaderModule``` first of all will try to find an entrypoint by name we passed to it. Then it will link the program from this entrypoint with every module you will import to this shader(I'll describe it later) and after that it will get the entrypoint code in SPIR-V from which we are finally able to create a ```VkShaderModule```
+```CreateShaderModule``` first of all will try to find an entry point by the name we passed to it. Then it will link the program from this entry point with every module you will import to this shader(I'll describe it later), and after that it will get the entry point code in SPIR-V from which we are finally able to create a ```VkShaderModule```
 Full method:
 ```cpp
 VkShaderModule VulkanShader::CreateShaderModule(slang::IModule* slangModule, const std::string& entrypointName)
@@ -359,14 +370,14 @@ VkShaderModule ReadShaderFile(const u32* data, size_t size, VkDevice device)
 }
 ```
 We need to use ```static_cast``` manually because ```getBufferPointer``` returns a void* data.
-Now you can use this base to create a modules for every type of the shaders: Vertex, Fragment, Compute, RayGen and others.
+Now you can use this base to create modules for every type of shaders: Vertex, Fragment, Compute, RayGen, and others.
 
 # Shaders
 I will show some examples of shaders in Slang and highlight the key advantages over GLSL/HLSL.
-In my opinion, the main features of Slang is it's modularity and flexibility. Unlike GLSL, it allows you to have different shader stages in one file, allowing you to store vertex and fragment shaders together in one file or even the entire ray tracing pipeline. Which sounds logical, since the feature exists in SPIR-V, which means the problem was in the language itself.
-The second is support for many modern things, like buffer pointers if you use Buffer Device Address. In GLSL you have to first create a structure that explains this.
+In my opinion, the main features of Slang is its modularity and flexibility. Unlike GLSL, it allows you to have different shader stages in one file, allowing you to store vertex and fragment shaders together in one file or even the entire ray tracing pipeline. Which sounds logical, since the feature exists in SPIR-V, which means the problem was in the language itself.
+The second is support for many modern things, like buffer pointers if you use Buffer Device Address. In GLSL, you have to first create a structure that explains this.
 
-> To find modules in specific folder place the file named ```slangdconfig.json``` to the main directory of the shader with this content
+> To find modules in specific folder, place the file named ```slangdconfig.json``` in the main directory of the shader with this content
 ```cpp
 {
   "slang.additionalSearchPaths": [
@@ -377,7 +388,7 @@ The second is support for many modern things, like buffer pointers if you use Bu
 ```
 Which will provide the folder to look for modules to Slang.
 
-Slang's syntax is very C#-like so you can create a structure like that: 
+Slang's syntax is very C#-like, so you can create a structure like that: 
 ```cpp
 public struct Triangle
 {
@@ -385,12 +396,12 @@ public struct Triangle
     public Array<float2, 3> uv;
 }
 ```
-Which means it will be visible in every file imported it(yes, you need to make fields public as well)
-You can do it in GLSL as well, however Slang is giving this possibility for modules out of the box which is the advantage I think.
+Which means it will be visible in every file imported into it(yes, you need to make fields public as well)
+You can do it in GLSL too, however, Slang gives this possibility for modules out of the box which is the advantage I think.
 
-For example, create some module to abstract some logic and you can import it in the other shader like that ```import common.mesh_common;``` where __common__ is the folder and __.__ is the __/__ for the folder.
-In GLSL you have a built-in variable ```gl_NumWorkGroups``` to get the dispatch size, Slang and HLSL, however, doesn't have it. What to do?
-Not a problem, if you use Vulkan just use an assembly to get this variable while preserving HLSL-like syntax:
+For example, create a module to abstract some logic and you can import it in the other shader like that ```import common.mesh_common;``` where __common__ is the folder and __.__ is the __/__ for the folder.
+In GLSL, you have a built-in variable ```gl_NumWorkGroups``` to get the dispatch size; Slang and HLSL, however, don't have it. What to do?
+Not a problem, if you use Vulkan, just use an assembly to get this variable while preserving HLSL-like syntax:
 ```cpp
 uint3 GetWorkgroupCount()
 {
@@ -537,10 +548,10 @@ FragmentOutput FragmentMain(VertexOutput input)
 }
 ```
 If you use a texture then use ```Sampler2D```, if you need a storage image you can use ```RWTexture2D<uint2>```
-This is just a simple example: Slang is giving a possibilities to use generics, interfaces which allows you to reuse the methods with multiple data, cross-target compilation. A modularity provides a data-reuse instead of "copying-pasting" source code every time you include the shader, which allows to have a circular-includes.  
+This is just a simple example: Slang gives possibilities to use generics, interfaces, which allow you to reuse the methods with multiple data, it supports cross-target compilation. Modularity provides data-reuse instead of "copying-pasting" source code every time you include the shader, which allows to have a circular-includes.  
 I won't describe every possibility it gives to you, as you can read their [user's guide](https://shader-slang.org/slang/user-guide/)  
 Investigate [Sascha's Willems examples](https://github.com/SaschaWillems/Vulkan/tree/master/shaders/slang) in Slang.
 
 # Suggestions
-One of the core reasons I decided to switch from GLSL was a syntax highlight. If you use Vulkan with such a modern features as Buffer Device Address, GLSL syntax highlighters will show an error, although the code compiles because it has no up-to-date linter which forces you to work without syntax highlight at all or to observe constant errors.
-Slang, however, has an official Visual Studio and Visual Studio Code language extensions and they work great.
+One of the core reasons I decided to switch from GLSL was the syntax highlight. If you use Vulkan with such modern features as Buffer Device Address, GLSL syntax highlighters will show an error, although the code compiles because it has no up-to-date linter that forces you to work without syntax highlighting at all or to observe constant errors.
+Slang, however, has an official Visual Studio and Visual Studio Code language extensions, and they work great.
