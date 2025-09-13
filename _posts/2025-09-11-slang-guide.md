@@ -117,13 +117,13 @@ All you left to do now is to include this file in your main CMake script like th
 The next step would be to place the function ```download_slang()``` somewhere below in this file. It would call the aforementioned script, and if the Slang library is not found in your project, it would proceed to download it.
 
 By executing the ```download_slang``` script you should be able to call 3 user-defined CMake variables:
-- ${SPIRV_LIBRARY_DIR} - path to the directory with the library files
+- ${SLANG_LIBRARY_DIR} - path to the directory with the library files
 - ${SLANG_INCLUDE_DIR} - path to the include directory
 - ${SLANG_BINARY_DIR}  - path to the directory with slang binary files
 
 Now you would need only the first two.
 You have to make all header files visible to your project, so inside of ```target_include_directories``` specify the include directory mentioned above.
-Then you can link the library, the easiest way to do that would be to call a ```target_link_directories``` and specify aforementioned command with the lib directory path(don't forget to link Slang after that, just by specifying ```target_link_libraries(target access modifier slang)```
+Then you can link the library, the easiest way to do that would be to call a ```target_link_directories``` and specify aforementioned command with the lib directory path(don't forget to link Slang after that, just by specifying ```target_link_libraries(target access modifier slang)```).
 
 ### Your .dll must be in the same directory as the .exe of your project. I suggest you use this CMake script:
 ```cpp
