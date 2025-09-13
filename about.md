@@ -4,12 +4,8 @@ title: About
 permalink: /about/
 ---
 
-Some information about you!
-
-### More Information
-
-A place to include any other types of information that you'd like to include about yourself.
+Hello, I am Alexander. I am 21 years old graphics developer from Ukraine, who is actively studying computer graphics field. In this blog I will shader my own advancements and thoughts related to computer graphics and engine development
 
 ### Contact me
 
-[email@domain.com](mailto:email@domain.com)
+[email@domain.com](mailto:akrysanchuk@gmail.com)
