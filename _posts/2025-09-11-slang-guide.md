@@ -399,7 +399,7 @@ public struct Triangle
 Which means it will be visible in every file imported into it(yes, you need to make fields public as well)
 You can do it in GLSL too, however, Slang gives this possibility for modules out of the box which is the advantage I think.
 
-For example, create a module to abstract some logic and you can import it in the other shader like that ```import common.mesh_common;``` where __common__ is the folder and __.__ is the __/__ for the folder.
+For example, create a module to abstract some logic and you can import it in the other shader like that ```import common.mesh_common;``` where __common__ is the folder and __.__ is the __/__ for the folder.  
 In GLSL, you have a built-in variable ```gl_NumWorkGroups``` to get the dispatch size; Slang and HLSL, however, don't have it. What to do?
 Not a problem, if you use Vulkan, just use an assembly to get this variable while preserving HLSL-like syntax:
 ```cpp
