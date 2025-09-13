@@ -8,4 +8,4 @@ Hello, I am Alexander. I am 21 years old graphics developer from Ukraine, who is
 
 ### Contact me
 
-[email@domain.com](mailto:akrysanchuk@gmail.com)
+[akrysanchuk@gmail.com](mailto:akrysanchuk@gmail.com)
